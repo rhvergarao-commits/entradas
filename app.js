@@ -550,12 +550,12 @@ async function armarLista(cod) {
     return `<button type="button" class="ficha ${clase}" onclick="verEntradaEnHoja('${jsArg(x.id)}','Entrada N° ${jsArg(x.n)}','','','${jsArg(x.n)}')" aria-label="Entrada ${esc(x.n)}">${esc(x.n)}<small>${x.id.slice(0, 4)}</small></button>`;
   }).join('');
   const evento = sesion.config ? sesion.config.evento : 'el evento';
-  let t = `Hola ${r.nombre.split(' ')[0]}, estos son tus códigos de entrada para ${evento}.\n` +
-    `Cuando entregues una, avísanos el número de entrada y los datos del comprador (nombre, DNI y celular).\n` +
-    `Cada código sirve para UNA sola persona.\n\n`;
-  listaActual.qrs.forEach(q => { t += `Entrada ${q.n}: ${q.id}\n`; });
-  $('lTexto').value = t;
-  $('lWhats').href = 'https://wa.me/?text=' + encodeURIComponent(t);
+  listaActual.celular = String(r.celular || '').replace(/\D/g, '');
+  $('lTexto').value = `Hola ${r.nombre.split(' ')[0]}, te saluda Meylin de Inka Fashion Perú. Te estamos asignando tus ${listaActual.qrs.length} entradas con el nuevo formato y la nueva fecha: ${fechaTexto()}.`;
+  enlacesWhatsApp();
+  envio = null;
+  $('lCompartir').innerHTML = `<button class="btn btn-vidrio" onclick="prepararEnvio()">2. Preparar las ${listaActual.qrs.length} imágenes</button>`;
+  $('lEnvioEstado').textContent = listaActual.celular ? '' : 'Este concursante no tiene celular registrado en la hoja.';
   $('lProgreso').textContent = '';
   $('lAcceso').classList.toggle('oculto', !r.clave);
   if (r.clave) {
@@ -568,6 +568,7 @@ async function armarLista(cod) {
 async function nuevoConcursante() {
   const nombre = $('nNombre').value.trim().replace(/\s+/g, ' ');
   const celular = $('nCel').value.replace(/\D/g, '');
+  if (!/^9\d{8}$/.test(celular)) { $('nError').textContent = 'Escribe el celular del concursante: 9 dígitos, empieza con 9'; return; }
   const cupo = Number($('nCupo').value) || 20;
   $('nError').textContent = '';
   if (nombre.length < 3) { $('nError').textContent = 'Escribe el nombre completo'; return; }
@@ -586,7 +587,52 @@ async function nuevoConcursante() {
   const it = { value: r.codigo, label: r.nombre, sub: r.codigo };
   $('lConc').innerHTML = `<div class="elegido"><div><b>${esc(it.label)}</b><small>${esc(it.sub)}</small></div><button type="button" onclick="prepararListas()">Cambiar</button></div>`;
   await armarLista(r.codigo);
-  $('lAvance').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('lEnvio').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  prepararEnvio();
+}
+// ---------- Envío por WhatsApp de escritorio ----------
+let envio = null;   // imágenes listas para compartir: { codigo, archivos }
+function fechaTexto() {
+  const f = sesion.config && sesion.config.fechaEvento;
+  if (!f) return 'domingo 31 de enero de 2027';
+  const [y, m, d] = f.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).replace(',', '');
+}
+function enlacesWhatsApp() {
+  if (!listaActual) return;
+  const t = encodeURIComponent($('lTexto').value), tel = listaActual.celular ? '51' + listaActual.celular : '';
+  $('lWhats').href = 'whatsapp://send?' + (tel ? 'phone=' + tel + '&' : '') + 'text=' + t;
+  $('lWhatsWeb').href = 'https://web.whatsapp.com/send?' + (tel ? 'phone=' + tel + '&' : '') + 'text=' + t;
+}
+async function prepararEnvio() {
+  if (!listaActual) return;
+  const datos = listaActual, qrs = datos.qrs.slice().sort((a, b) => Number(a.n) - Number(b.n));
+  const estado = $('lEnvioEstado'), archivos = [];
+  $('lCompartir').innerHTML = '';
+  try {
+    for (let i = 0; i < qrs.length; i++) {
+      estado.textContent = `Preparando imagen ${i + 1} de ${qrs.length}...`;
+      const cv = await crearEntrada(qrs[i].id, qrs[i].n);
+      const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.9));
+      archivos.push(new File([blob], 'Entrada_' + String(qrs[i].n).padStart(2, '0') + '_' + qrs[i].id + '.jpg', { type: 'image/jpeg' }));
+    }
+  } catch (e) { estado.textContent = 'No se pudieron preparar: ' + e.message; return; }
+  if (listaActual !== datos) return;
+  envio = { codigo: datos.codigo, archivos };
+  const grupos = [];
+  for (let i = 0; i < archivos.length; i += 10) grupos.push([i, Math.min(i + 10, archivos.length)]);
+  $('lCompartir').innerHTML = grupos.map((g, k) => `<button class="btn btn-oro" onclick="compartirGrupo(${g[0]},${g[1]})">${grupos.length > 1 ? (k + 2) + '. ' : '2. '}Compartir imágenes ${g[0] + 1} a ${g[1]}</button>`).join('');
+  estado.textContent = `Listas las ${archivos.length} imágenes. Toca cada botón, elige WhatsApp y luego el chat de ${datos.nombre.split(' ')[0]}.`;
+}
+async function compartirGrupo(a, b) {
+  if (!envio) return;
+  const files = envio.archivos.slice(a, b);
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ files }); } catch (e) { if (e.name !== 'AbortError') aviso('No se pudo compartir: ' + e.message); }
+  } else {
+    aviso('Este navegador no permite compartir imágenes. Se descargan en un ZIP para arrastrarlas al chat.', 5000);
+    lote('zip');
+  }
 }
 async function generar() {
   if (!listaActual) return;
@@ -655,12 +701,12 @@ async function verResumen() {
 }
 
 // ---------- Diseño de la entrada ----------
-// Diseño de la entrada. Medidas en píxeles del original (4800 x 1944): se escalan solas.
-const PLANTILLA = 'entrada2.webp?v=4';
-const PLANTILLA_ANCHO = 4800, PLANTILLA_ALTO = 1944;
-const CAJA_QR = { x: 4116, y: 588, w: 536, h: 536 };   // recuadro blanco del talón
-const CAJA_NUM = { x: 4148, y: 1192, w: 96, h: 64 };   // casilla "N.º"
-const CAJA_COD = { x: 4308, y: 1192, w: 392, h: 64 };  // casilla del código de 10 caracteres
+// Diseño de la entrada. Medidas en píxeles del original (2160 x 2700): se escalan solas.
+const PLANTILLA = 'entrada.webp?v=6';
+const PLANTILLA_ANCHO = 2160, PLANTILLA_ALTO = 2700;
+const CAJA_QR = { x: 220, y: 1836, w: 600, h: 600 };   // recuadro blanco del talón
+const CAJA_NUM = { x: 280, y: 2498, w: 104, h: 68 };   // casilla "N.º"
+const CAJA_COD = { x: 444, y: 2498, w: 396, h: 68 };   // casilla del código de 10 caracteres
 const TINTA = '#3B2212';
 const FUENTE = 'Montserrat, "Segoe UI", Arial, sans-serif';
 
@@ -684,8 +730,8 @@ function matrizQR(texto) {
 async function crearEntrada(id, n) {
   const img = await cargarPlantilla();
   try { await document.fonts.load('700 40px Montserrat'); } catch (e) { /* usa la fuente de respaldo */ }
-  // La imagen puede venir en cualquier tamaño: se trabaja a 2000 px de ancho como máximo (liviana para WhatsApp)
-  const k = Math.min(1, 2000 / img.naturalWidth);
+  // La imagen puede venir en cualquier tamaño: se trabaja a 2000 px como máximo (liviana para WhatsApp)
+  const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
   const cv = document.createElement('canvas');
   cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
   const ctx = cv.getContext('2d');

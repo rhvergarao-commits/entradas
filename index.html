@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Montserrat:wght@700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="estilos.css?v=4">
+<link rel="stylesheet" href="estilos.css?v=5">
 </head>
 <body>
 <div class="fondo" aria-hidden="true"><div class="patron"></div></div>
@@ -165,7 +165,7 @@
       <label for="nNombre">Nombre completo</label>
       <input type="text" id="nNombre" autocomplete="off" autocapitalize="words" placeholder="Nombre y apellidos">
       <div class="dos">
-        <div><label for="nCel">Celular (opcional)</label><input type="tel" id="nCel" inputmode="numeric" maxlength="9" placeholder="9XX XXX XXX"></div>
+        <div><label for="nCel">Celular</label><input type="tel" id="nCel" inputmode="numeric" maxlength="9" placeholder="9XX XXX XXX"></div>
         <div><label for="nCupo">Entradas</label><input type="number" id="nCupo" min="1" max="50" value="20"></div>
       </div>
       <button class="btn btn-oro" id="btnNuevo" onclick="nuevoConcursante()">Crear y asignar entradas</button>
@@ -196,13 +196,13 @@
         </div>
         <p class="nota" id="lProgreso"></p>
       </div>
-      <div class="vidrio panel">
-        <h3>Mensaje con los códigos</h3>
-        <textarea id="lTexto" readonly aria-label="Mensaje con los códigos"></textarea>
-        <div class="fila-btn">
-          <a class="btn btn-vidrio" id="lWhats" target="_blank" rel="noopener">Abrir WhatsApp</a>
-          <button class="btn btn-vidrio" onclick="copiar(document.getElementById('lTexto').value)">Copiar</button>
-        </div>
+      <div class="vidrio panel" id="lEnvio">
+        <h3>Enviar por WhatsApp</h3>
+        <textarea id="lTexto" aria-label="Mensaje para el concursante" oninput="enlacesWhatsApp()"></textarea>
+        <a class="btn btn-oro" id="lWhats">1. Abrir chat con el mensaje</a>
+        <p class="nota">Se abre WhatsApp de escritorio. Si no abre, usa <a class="enlace-texto" id="lWhatsWeb" target="_blank" rel="noopener">WhatsApp Web</a>.</p>
+        <div class="fila-btn" id="lCompartir"></div>
+        <p class="nota" id="lEnvioEstado"></p>
       </div>
       <div class="vidrio panel oculto" id="lGenerar">
         <h3>Reponer entradas perdidas</h3>
@@ -268,6 +268,6 @@
 <script src="lib/html5-qrcode.min.js"></script>
 <script src="lib/jspdf.umd.min.js"></script>
 <script src="lib/jszip.min.js"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
