@@ -554,7 +554,7 @@ async function armarLista(cod) {
   $('lTexto').value = `Hola ${r.nombre.split(' ')[0]}, te saluda Meylin de Inka Fashion Perú. Te estamos asignando tus ${listaActual.qrs.length} entradas con el nuevo formato y la nueva fecha: ${fechaTexto()}.`;
   enlacesWhatsApp();
   envio = null;
-  $('lCompartir').innerHTML = `<button class="btn btn-oro" onclick="guardarEnCarpeta()">2. Guardar las ${listaActual.qrs.length} imágenes en una carpeta</button>`;
+  $('lCompartir').innerHTML = `<button class="btn btn-oro" onclick="guardarEnCarpeta()">Guardar las ${listaActual.qrs.length} imágenes y abrir el chat</button>`;
   $('lEnvioEstado').textContent = listaActual.celular ? '' : 'Este concursante no tiene celular registrado en la hoja.';
   $('lProgreso').textContent = '';
   $('lAcceso').classList.toggle('oculto', !r.clave);
@@ -620,7 +620,7 @@ async function prepararEnvio() {
       archivos.push(new File([blob], 'Entrada_' + String(qrs[i].n).padStart(2, '0') + '_' + qrs[i].id + '.jpg', { type: 'image/jpeg' }));
     }
     envio = { codigo: datos.codigo, archivos };
-    if (listaActual === datos) estado.textContent = `Listas las ${archivos.length} imágenes. Toca "Guardar" para pasarlas a una carpeta.`;
+    if (listaActual === datos) estado.textContent = `Listas las ${archivos.length} imágenes.`;
     return envio;
   })();
   envio = { codigo: datos.codigo, archivos: [], promesa: trabajo };
@@ -669,8 +669,9 @@ async function guardarEnCarpeta() {
       const h = await dir.getFileHandle(listo.archivos[i].name, { create: true });
       const w = await h.createWritable(); await w.write(listo.archivos[i]); await w.close();
     }
-    estado.innerHTML = `Listo: ${listo.archivos.length} imágenes en la carpeta <b>${esc(carpetaRaiz.name)} › ${esc(nombre)}</b>.<br>` +
-      `3. Abre esa carpeta, selecciona todo (Ctrl+A), arrástralas al chat de ${esc(datos.nombre.split(' ')[0])} en WhatsApp de escritorio y presiona Enviar.`;
+    estado.innerHTML = `Listo: ${listo.archivos.length} imágenes en <b>${esc(carpetaRaiz.name)} › ${esc(nombre)}</b>.<br>` +
+      `En el chat de ${esc(datos.nombre.split(' ')[0])}: presiona Enviar para el saludo. Luego abre esa carpeta, Ctrl+A y arrastra las imágenes al chat.`;
+    try { location.href = $('lWhats').href; } catch (e) { /* queda el botón "Abrir chat" */ }
   } catch (e) {
     if (e.name === 'AbortError') return;
     estado.textContent = 'No se pudieron guardar: ' + e.message + '. Elige otra carpeta (por ejemplo, crea "Entradas Inka" dentro de Documentos).';

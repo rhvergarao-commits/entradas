@@ -199,10 +199,10 @@
       <div class="vidrio panel" id="lEnvio">
         <h3>Enviar por WhatsApp</h3>
         <textarea id="lTexto" aria-label="Mensaje para el concursante" oninput="enlacesWhatsApp()"></textarea>
-        <a class="btn btn-oro" id="lWhats">1. Abrir chat con el mensaje</a>
-        <p class="nota">Se abre el chat en WhatsApp de escritorio con el saludo listo: presiona Enviar. Si no abre, usa <a class="enlace-texto" id="lWhatsWeb" target="_blank" rel="noopener">WhatsApp Web</a>.</p>
-        <div class="fila-btn" id="lCompartir"></div>
+        <div id="lCompartir"></div>
         <p class="nota" id="lEnvioEstado"></p>
+        <a class="btn btn-vidrio" id="lWhats">Abrir el chat otra vez</a>
+        <p class="nota">Se abre en WhatsApp de escritorio con el saludo escrito. Si no abre, usa <a class="enlace-texto" id="lWhatsWeb" target="_blank" rel="noopener">WhatsApp Web</a>.</p>
         <p class="nota">La primera vez elige o crea una carpeta (por ejemplo "Entradas Inka" en Documentos). Después se recuerda y cada concursante tiene su propia subcarpeta.</p>
       </div>
       <div class="vidrio panel oculto" id="lGenerar">
@@ -269,6 +269,6 @@
 <script src="lib/html5-qrcode.min.js"></script>
 <script src="lib/jspdf.umd.min.js"></script>
 <script src="lib/jszip.min.js"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
