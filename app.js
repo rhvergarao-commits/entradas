@@ -554,7 +554,7 @@ async function armarLista(cod) {
   $('lTexto').value = `Hola ${r.nombre.split(' ')[0]}, te saluda Meylin de Inka Fashion Perú. Te estamos asignando tus ${listaActual.qrs.length} entradas con el nuevo formato y la nueva fecha: ${fechaTexto()}.`;
   enlacesWhatsApp();
   envio = null;
-  $('lCompartir').innerHTML = `<button class="btn btn-vidrio" onclick="prepararEnvio()">2. Preparar las ${listaActual.qrs.length} imágenes</button>`;
+  $('lCompartir').innerHTML = `<button class="btn btn-oro" onclick="guardarEnCarpeta()">2. Guardar las ${listaActual.qrs.length} imágenes en una carpeta</button>`;
   $('lEnvioEstado').textContent = listaActual.celular ? '' : 'Este concursante no tiene celular registrado en la hoja.';
   $('lProgreso').textContent = '';
   $('lAcceso').classList.toggle('oculto', !r.clave);
@@ -604,34 +604,77 @@ function enlacesWhatsApp() {
   $('lWhats').href = 'whatsapp://send?' + (tel ? 'phone=' + tel + '&' : '') + 'text=' + t;
   $('lWhatsWeb').href = 'https://web.whatsapp.com/send?' + (tel ? 'phone=' + tel + '&' : '') + 'text=' + t;
 }
+// Prepara las imágenes de las entradas del concursante (en segundo plano)
 async function prepararEnvio() {
-  if (!listaActual) return;
-  const datos = listaActual, qrs = datos.qrs.slice().sort((a, b) => Number(a.n) - Number(b.n));
-  const estado = $('lEnvioEstado'), archivos = [];
-  $('lCompartir').innerHTML = '';
-  try {
+  if (!listaActual) return null;
+  const datos = listaActual;
+  if (envio && envio.codigo === datos.codigo && envio.archivos.length === datos.qrs.length) return envio;
+  if (envio && envio.promesa && envio.codigo === datos.codigo) return envio.promesa;
+  const estado = $('lEnvioEstado');
+  const trabajo = (async () => {
+    const qrs = datos.qrs.slice().sort((a, b) => Number(a.n) - Number(b.n)), archivos = [];
     for (let i = 0; i < qrs.length; i++) {
-      estado.textContent = `Preparando imagen ${i + 1} de ${qrs.length}...`;
+      if (listaActual === datos) estado.textContent = `Preparando imagen ${i + 1} de ${qrs.length}...`;
       const cv = await crearEntrada(qrs[i].id, qrs[i].n);
       const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.9));
       archivos.push(new File([blob], 'Entrada_' + String(qrs[i].n).padStart(2, '0') + '_' + qrs[i].id + '.jpg', { type: 'image/jpeg' }));
     }
-  } catch (e) { estado.textContent = 'No se pudieron preparar: ' + e.message; return; }
-  if (listaActual !== datos) return;
-  envio = { codigo: datos.codigo, archivos };
-  const grupos = [];
-  for (let i = 0; i < archivos.length; i += 10) grupos.push([i, Math.min(i + 10, archivos.length)]);
-  $('lCompartir').innerHTML = grupos.map((g, k) => `<button class="btn btn-oro" onclick="compartirGrupo(${g[0]},${g[1]})">${grupos.length > 1 ? (k + 2) + '. ' : '2. '}Compartir imágenes ${g[0] + 1} a ${g[1]}</button>`).join('');
-  estado.textContent = `Listas las ${archivos.length} imágenes. Toca cada botón, elige WhatsApp y luego el chat de ${datos.nombre.split(' ')[0]}.`;
+    envio = { codigo: datos.codigo, archivos };
+    if (listaActual === datos) estado.textContent = `Listas las ${archivos.length} imágenes. Toca "Guardar" para pasarlas a una carpeta.`;
+    return envio;
+  })();
+  envio = { codigo: datos.codigo, archivos: [], promesa: trabajo };
+  try { return await trabajo; } catch (e) { envio = null; estado.textContent = 'No se pudieron preparar: ' + e.message; return null; }
 }
-async function compartirGrupo(a, b) {
-  if (!envio) return;
-  const files = envio.archivos.slice(a, b);
-  if (navigator.canShare && navigator.canShare({ files })) {
-    try { await navigator.share({ files }); } catch (e) { if (e.name !== 'AbortError') aviso('No se pudo compartir: ' + e.message); }
-  } else {
-    aviso('Este navegador no permite compartir imágenes. Se descargan en un ZIP para arrastrarlas al chat.', 5000);
+// Carpeta elegida una vez y recordada en este equipo (Chrome o Edge)
+let carpetaRaiz = null;
+function idb(modo, valor) {
+  return new Promise(ok => {
+    try {
+      const r = indexedDB.open('entradas-inka', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('ajustes');
+      r.onerror = () => ok(null);
+      r.onsuccess = () => {
+        try {
+          const tx = r.result.transaction('ajustes', modo === 'leer' ? 'readonly' : 'readwrite'), st = tx.objectStore('ajustes');
+          const q = modo === 'leer' ? st.get('carpeta') : st.put(valor, 'carpeta');
+          q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null);
+        } catch (e) { ok(null); }
+      };
+    } catch (e) { ok(null); }
+  });
+}
+async function guardarEnCarpeta() {
+  if (!listaActual) return;
+  const datos = listaActual, estado = $('lEnvioEstado');
+  if (!window.showDirectoryPicker) {
+    aviso('Abre la app en Chrome o Edge para guardar en carpeta. Ahora se descargan en un ZIP.', 5000);
     lote('zip');
+    return;
+  }
+  try {
+    if (!carpetaRaiz) carpetaRaiz = await idb('leer');
+    let permiso = carpetaRaiz ? await carpetaRaiz.queryPermission({ mode: 'readwrite' }) : 'no';
+    if (carpetaRaiz && permiso !== 'granted') permiso = await carpetaRaiz.requestPermission({ mode: 'readwrite' });
+    if (!carpetaRaiz || permiso !== 'granted') {
+      carpetaRaiz = await showDirectoryPicker({ id: 'entradas-inka', mode: 'readwrite', startIn: 'documents' });
+      idb('guardar', carpetaRaiz);
+    }
+    const listo = await prepararEnvio();
+    if (!listo || listaActual !== datos) return;
+    const nombre = (datos.codigo + ' ' + datos.nombre).replace(/[\\/:*?"<>|]/g, '').trim();
+    const dir = await carpetaRaiz.getDirectoryHandle(nombre, { create: true });
+    for (let i = 0; i < listo.archivos.length; i++) {
+      estado.textContent = `Guardando imagen ${i + 1} de ${listo.archivos.length}...`;
+      const h = await dir.getFileHandle(listo.archivos[i].name, { create: true });
+      const w = await h.createWritable(); await w.write(listo.archivos[i]); await w.close();
+    }
+    estado.innerHTML = `Listo: ${listo.archivos.length} imágenes en la carpeta <b>${esc(carpetaRaiz.name)} › ${esc(nombre)}</b>.<br>` +
+      `3. Abre esa carpeta, selecciona todo (Ctrl+A), arrástralas al chat de ${esc(datos.nombre.split(' ')[0])} en WhatsApp de escritorio y presiona Enviar.`;
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    estado.textContent = 'No se pudieron guardar: ' + e.message + '. Elige otra carpeta (por ejemplo, crea "Entradas Inka" dentro de Documentos).';
+    carpetaRaiz = null;
   }
 }
 async function generar() {
